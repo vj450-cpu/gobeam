@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoBeam Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #1a1a2e; color: #fff; text-align: center; margin: 0; padding: 20px; }
+        h1 { color: #e94560; }
+        h2 { color: #4CAF50; }
+        .chart-container { width: 80%; margin: 20px auto; max-width: 800px; }
+        table { width: 80%; margin: 20px auto; border-collapse: collapse; background: #16213e; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        th, td { padding: 15px; border-bottom: 1px solid #0f3460; text-align: left; }
+        th { background-color: #0f3460; color: #fff; text-transform: uppercase; }
+        .up { color: #4CAF50; font-weight: bold; }
+        .down { color: #f44336; font-weight: bold; }
+        .stats-summary { margin: 20px; padding: 15px; background: #16213e; border-radius: 8px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <h1>GoBeam Load Balancer</h1>
+    
+    <div class="stats-summary">
+        <h3>Total Requests Handled: <span id="total-requests">0</span></h3>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="trafficChart"></canvas>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Server</th>
+                <th>Status</th>
+                <th>Active</th>
+                <th>Requests</th>
+            </tr>
+        </thead>
+        <tbody id="servers">
+            <tr><td colspan="4">Loading data...</td></tr>
+        </tbody>
+    </table>
+
+    <script>
+        let chart;
+        
+        function initChart() {
+            const ctx = document.getElementById('trafficChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Total Requests',
+                        data: [],
+                        backgroundColor: '#e94560',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#fff' }
+                        },
+                        x: {
+                            ticks: { color: '#fff' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#fff' } }
+                    }
+                }
+            });
+        }
+
+        async function fetchStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                const tableBody = document.getElementById('servers');
+                tableBody.innerHTML = '';
+                
+                let totalRequests = 0;
+                let chartLabels = [];
+                let chartData = [];
+                
+                data.servers.forEach(server => {
+                    // Update table
+                    const row = document.createElement('tr');
+                    const statusClass = server.status === 'UP' ? 'up' : 'down';
+                    
+                    row.innerHTML = `
+                        <td>${server.url}</td>
+                        <td class="${statusClass}">${server.status}</td>
+                        <td>${server.active}</td>
+                        <td>${server.requests}</td>
+                    `;
+                    tableBody.appendChild(row);
+                    
+                    // Update variables for Summary & Chart
+                    totalRequests += server.requests;
+                    chartLabels.push(server.url);
+                    chartData.push(server.requests);
+                });
+                
+                // Update Summary
+                document.getElementById('total-requests').innerText = totalRequests;
+                
+                // Update Chart
+                if (chart) {
+                    chart.data.labels = chartLabels;
+                    chart.data.datasets[0].data = chartData;
+                    chart.update();
+                }
+            } catch (err) {
+                console.error("Error fetching stats", err);
+            }
+        }
+
+        initChart();
+        // Fetch stats every 2 seconds
+        setInterval(fetchStats, 2000);
+        fetchStats();
+    </script>
+</body>
+</html>
